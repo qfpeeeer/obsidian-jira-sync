@@ -1,20 +1,12 @@
-export const defaultTemplate =
-`---
-key: 
-summary: 
-status: 
-assignee: 
-tags: 
-description: 
+export const defaultTemplate = `---
+key:
+summary:
+status:
+assignee:
+storyPoints:
+tags:
 ---
-
-### Time spend
-\`\`\`timekeep
-{"entries":[]}  
-\`\`\`
 
 ### Description
 \`jira-sync-section-description\`
-
-### Other info
 `;
