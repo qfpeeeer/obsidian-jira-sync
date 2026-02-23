@@ -1,12 +1,20 @@
 import JiraPlugin from "../main";
-import {TFile} from "obsidian";
-import {createJiraIssue, updateJiraIssue, updateJiraStatus} from "../api";
-import {prepareJiraFieldsFromFile} from "./commonPrepareData";
-import {localToJiraFields, updateJiraToLocal} from "../tools/mapObsidianJiraFields";
-import {JiraIssue, JiraTransitionType} from "../interfaces";
-import {obsidianJiraFieldMappings} from "../default/obsidianJiraFieldsMapping";
+import { TFile } from "obsidian";
+import { createJiraIssue, updateJiraIssue, updateJiraStatus } from "../api";
+import { prepareJiraFieldsFromFile } from "./commonPrepareData";
+import {
+	localToJiraFields,
+	updateJiraToLocal,
+} from "../tools/mapObsidianJiraFields";
+import { JiraIssue, JiraTransitionType } from "../interfaces";
+import { obsidianJiraFieldMappings } from "../default/obsidianJiraFieldsMapping";
+import { ensureFolder } from "../tools/filesUtils";
+import { sanitizeFileName } from "../tools/sanitizers";
 
-export async function updateIssueFromFile(plugin: JiraPlugin, file: TFile): Promise<string> {
+export async function updateIssueFromFile(
+	plugin: JiraPlugin,
+	file: TFile,
+): Promise<string> {
 	let fields = await prepareJiraFieldsFromFile(plugin, file);
 	const issueKey = fields.key;
 
@@ -14,7 +22,10 @@ export async function updateIssueFromFile(plugin: JiraPlugin, file: TFile): Prom
 		throw new Error("No issue key found in frontmatter");
 	}
 
-	fields = localToJiraFields(fields, {...obsidianJiraFieldMappings, ...plugin.settings.fieldMapping.fieldMappings});
+	fields = localToJiraFields(fields, {
+		...obsidianJiraFieldMappings,
+		...plugin.settings.fieldMapping.fieldMappings,
+	});
 	await updateJiraIssue(plugin, issueKey, fields);
 	return issueKey;
 }
@@ -27,7 +38,10 @@ export async function createIssueFromFile(
 	if (!fields) {
 		fields = await prepareJiraFieldsFromFile(plugin, file);
 	}
-	fields = localToJiraFields(fields, {...obsidianJiraFieldMappings, ...plugin.settings.fieldMapping.fieldMappings});
+	fields = localToJiraFields(fields, {
+		...obsidianJiraFieldMappings,
+		...plugin.settings.fieldMapping.fieldMappings,
+	});
 	// Create the issue
 	const issueData = await createJiraIssue(plugin, fields);
 	const issueKey = issueData.key;
@@ -40,7 +54,11 @@ export async function createIssueFromFile(
 	return issueKey;
 }
 
-export async function updateStatusFromFile(plugin: JiraPlugin, file: TFile, transition: JiraTransitionType): Promise<string> {
+export async function updateStatusFromFile(
+	plugin: JiraPlugin,
+	file: TFile,
+	transition: JiraTransitionType,
+): Promise<string> {
 	const fields = await prepareJiraFieldsFromFile(plugin, file);
 
 	if (!fields.key) {
@@ -48,6 +66,17 @@ export async function updateStatusFromFile(plugin: JiraPlugin, file: TFile, tran
 	}
 
 	await updateJiraStatus(plugin, fields.key, transition.id);
-	await updateJiraToLocal(plugin, file, {fields: {status: {name: transition.status}}} as JiraIssue);
+	await updateJiraToLocal(plugin, file, {
+		fields: { status: { name: transition.status } },
+	} as JiraIssue);
+
+	// Move file to the new status subfolder
+	const newFolder = `${plugin.settings.global.issuesFolder}/${sanitizeFileName(transition.status)}`;
+	const newPath = `${newFolder}/${file.name}`;
+	if (file.path !== newPath) {
+		await ensureFolder(plugin.app.vault, newFolder);
+		await plugin.app.vault.rename(file, newPath);
+	}
+
 	return fields.key;
 }

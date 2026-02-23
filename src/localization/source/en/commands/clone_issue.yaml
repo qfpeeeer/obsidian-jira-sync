@@ -1,0 +1,3 @@
+name: Clone issue to Jira
+success: Issue {issueKey} cloned successfully
+error: Error cloning issue

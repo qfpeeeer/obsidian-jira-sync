@@ -1,13 +1,24 @@
 import JiraPlugin from "../main";
+import { Vault } from "obsidian";
 
 /**
  * Ensure the issues folder exists
  */
 export async function ensureIssuesFolder(plugin: JiraPlugin): Promise<void> {
-	const folderPath = plugin.settings.global.issuesFolder;
-	const folder = plugin.app.vault.getFolderByPath(folderPath);
-	if (!folder && folderPath) {
-		await plugin.app.vault.createFolder(folderPath);
+	await ensureFolder(plugin.app.vault, plugin.settings.global.issuesFolder);
+}
+
+/**
+ * Ensure a folder (and all parent folders) exists in the vault
+ */
+export async function ensureFolder(
+	vault: Vault,
+	folderPath: string,
+): Promise<void> {
+	if (!folderPath) return;
+	const folder = vault.getFolderByPath(folderPath);
+	if (!folder) {
+		await vault.createFolder(folderPath);
 	}
 }
 

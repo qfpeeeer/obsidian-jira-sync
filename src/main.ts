@@ -1,17 +1,23 @@
-import {Plugin } from "obsidian";
+import { Plugin } from "obsidian";
 import { JiraSettingTab } from "./settings/JiraSettingTab";
-import {DEFAULT_SETTINGS, JiraSettingsInterface} from "./settings/default";
+import { DEFAULT_SETTINGS, JiraSettingsInterface } from "./settings/default";
 import {
-	registerUpdateIssueCommand, registerUpdateWorkLogManuallyCommand,
-	registerGetCurrentIssueCommand, registerUpdateWorkLogBatchCommand,
-	registerCreateIssueCommand, registerGetIssueCommandWithCustomKey, registerUpdateIssueStatusCommand,
-	registerBatchFetchIssuesCommand
+	registerUpdateIssueCommand,
+	registerUpdateWorkLogManuallyCommand,
+	registerGetCurrentIssueCommand,
+	registerUpdateWorkLogBatchCommand,
+	registerCreateIssueCommand,
+	registerGetIssueCommandWithCustomKey,
+	registerUpdateIssueStatusCommand,
+	registerBatchFetchIssuesCommand,
+	registerCloneIssueCommand,
+	registerSyncSprintIssuesCommand,
 } from "./commands";
-import {transform_string_to_functions_mappings} from "./tools/convertFunctionString";
-import {createJiraSyncExtension} from "./postprocessing/livePreview";
-import {hideJiraPointersReading} from "./postprocessing/reading";
+import { transform_string_to_functions_mappings } from "./tools/convertFunctionString";
+import { createJiraSyncExtension } from "./postprocessing/livePreview";
+import { hideJiraPointersReading } from "./postprocessing/reading";
 import { buildCacheFromFilesystem, validateCache } from "./tools/cacheUtils";
-import {checkMigrateSettings} from "./tools/migrateSettings";
+import { checkMigrateSettings } from "./tools/migrateSettings";
 
 export default class JiraPlugin extends Plugin {
 	settings: JiraSettingsInterface;
@@ -33,6 +39,8 @@ export default class JiraPlugin extends Plugin {
 		registerGetIssueCommandWithCustomKey(this);
 		registerCreateIssueCommand(this);
 		registerBatchFetchIssuesCommand(this);
+		registerCloneIssueCommand(this);
+		registerSyncSprintIssuesCommand(this);
 
 		registerUpdateWorkLogManuallyCommand(this);
 		registerUpdateWorkLogBatchCommand(this);
@@ -48,7 +56,6 @@ export default class JiraPlugin extends Plugin {
 
 		// Register vault event listeners for cache maintenance
 		this.registerVaultEventListeners();
-
 	}
 
 	async loadSettings() {
@@ -57,7 +64,10 @@ export default class JiraPlugin extends Plugin {
 		const new_data = checkMigrateSettings(old_data, this.saveSettings);
 
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, new_data);
-		this.settings.fieldMapping.fieldMappings = await transform_string_to_functions_mappings(this.settings.fieldMapping.fieldMappingsStrings);
+		this.settings.fieldMapping.fieldMappings =
+			await transform_string_to_functions_mappings(
+				this.settings.fieldMapping.fieldMappingsStrings,
+			);
 	}
 
 	async saveSettings() {
@@ -66,13 +76,15 @@ export default class JiraPlugin extends Plugin {
 
 	private initializeCache() {
 		this.issueKeyToFilePathCache.clear();
-		Object.entries(this.settings.issueKeyToFilePathCache).forEach(([key, path]) => {
-			this.issueKeyToFilePathCache.set(key, path);
-		});
+		Object.entries(this.settings.issueKeyToFilePathCache).forEach(
+			([key, path]) => {
+				this.issueKeyToFilePathCache.set(key, path);
+			},
+		);
 	}
 
 	getAllIssueKeysMap(): Map<string, string> {
-		return this.issueKeyToFilePathCache
+		return this.issueKeyToFilePathCache;
 	}
 
 	getFilePathForIssueKey(issueKey: string): string | undefined {
@@ -103,29 +115,34 @@ export default class JiraPlugin extends Plugin {
 	}
 
 	private registerVaultEventListeners() {
-
 		// Handle file renames
 		this.registerEvent(
-			this.app.vault.on('rename', (file, oldPath) => {
-				for (const [issueKey, cachedPath] of this.issueKeyToFilePathCache.entries()) {
+			this.app.vault.on("rename", (file, oldPath) => {
+				for (const [
+					issueKey,
+					cachedPath,
+				] of this.issueKeyToFilePathCache.entries()) {
 					if (cachedPath === oldPath) {
 						this.setFilePathForIssueKey(issueKey, file.path);
 						break;
 					}
 				}
-			})
+			}),
 		);
 
 		// Handle file deletions
 		this.registerEvent(
-			this.app.vault.on('delete', (file) => {
-				for (const [issueKey, cachedPath] of this.issueKeyToFilePathCache.entries()) {
+			this.app.vault.on("delete", (file) => {
+				for (const [
+					issueKey,
+					cachedPath,
+				] of this.issueKeyToFilePathCache.entries()) {
 					if (cachedPath === file.path) {
 						this.removeIssueKeyFromCache(issueKey);
 						break;
 					}
 				}
-			})
+			}),
 		);
 	}
 }
